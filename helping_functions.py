@@ -33,7 +33,7 @@ def evaluate_predictions(y_true, y_pred):
     print("--> Confusion Matrix:")
     print(f"      Pred:0   Pred:1")
     print(f"True:0  [{tn:<5}] [{fp:<5}]  (Spoofed)")
-    print(f"True:1  [{fn:<5}] [{tp:<5}]  (Authentic)\n")
+    print(f"True:1  [{fn:<5}] [{tp:<5}]  (Authentic)")
     return accuracy
 
 
@@ -42,3 +42,31 @@ def load_data(file_path):
     X = data[:, :6].T  
     y = data[:, 6]     
     return X, y
+
+
+def minDCF(llr_scores, labels, prior_class, cost_FN, cost_FP):
+   
+
+    sorted_indices= np.argsort(llr_scores)
+    llr_scores= llr_scores[sorted_indices]
+    labels= labels[sorted_indices]
+
+    total_authentic = np.sum(labels == 1)
+    total_spoofed = np.sum(labels == 0)
+
+    p_fn_cum= np.cumsum(labels==1)
+    p_fn_cum= np.concatenate([[0], p_fn_cum, [total_authentic]])
+
+    p_fp_cum = total_spoofed - np.cumsum(labels == 0)
+    p_fp_cum = np.concatenate([[total_spoofed], p_fp_cum, [0]])
+
+    p_fn_rates = p_fn_cum / total_authentic
+    p_fp_rates = p_fp_cum / total_spoofed
+
+    dcf_values = cost_FN * p_fn_rates * prior_class + cost_FP * p_fp_rates * (1 - prior_class)
+
+    dummy_dcf = min(cost_FN * prior_class, cost_FP * (1 - prior_class))
+
+    min_dcf = np.min(dcf_values) / dummy_dcf
+    return min_dcf
+

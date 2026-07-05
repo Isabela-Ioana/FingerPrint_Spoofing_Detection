@@ -2,7 +2,7 @@
 
 A Machine Learning pipeline built entirely **from scratch using Python, NumPy, and SciPy**. This project focuses on binary classification to identify genuine vs. counterfeit (spoofed) fingerprint images using a 6-dimensional high-level feature dataset that capture the subtle structural anomalies of synthetic replication materials.
 
-To demonstrate deep theoretical understanding and avoid data leakage, standard ML libraries (like *scikit-learn*) were deliberately omitted; data splitting, metrics evaluation, dimensionality reduction, and generative classification are all implemented manually.
+To demonstrate deep theoretical understanding, standard ML libraries (like *scikit-learn*) were deliberately omitted; data splitting, metrics evaluation, dimensionality reduction, and generative classification are all implemented manually.
 
 
 
@@ -23,12 +23,11 @@ The model architecture was trained on 70% of the data (4,200 samples) and valida
 
 ### Model Performance Comparison
 
-| Pipeline / Model | Input Dimensions | Accuracy | False Positives (FP) | False Negatives (FN) |
-| :--- | :---: | :---: | :---: | :---: |
-| **Raw MVG (Baseline)** | 6D | **91.56%** | **79** | **73** |
-| **PCA + MVG** | 2D | **90.00%** | **83** | **97** |
-| **LDA + MVG** | 1D | **89.50%** | **92** | **97** |
-
+| Pipeline / Model | Input Dimensions | Accuracy | minDCF ($P_{true}=0.5$) | False Positives (FP) | False Negatives (FN) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Raw MVG (Baseline)** | 6D | **91.56%** | **0.1628** | **79** | **73** |
+| **PCA + MVG** | 2D | **90.00%** | **0.1985** | **83** | **97** |
+| **LDA + MVG** | 1D | **89.50%** | **0.2004** | **92** | **97** |
 
 
 
@@ -85,3 +84,17 @@ The decision rule maps the continuous LLR score into a discrete prediction using
 $$\text{Prediction} = \begin{cases} 1 \quad \text{(Authentic),} & \text{if } LLR(x) > 0 \\ 0 \quad \text{(Spoofed),} & \text{if } LLR(x) \le 0 \end{cases}$$
 
 In the custom NumPy implementation, this vectorized comparison is executed elegantly and efficiently across all samples simultaneously using `np.argmax(log_densities, axis=0)`.
+
+The continuous LLR score is further leveraged to evaluate the system under a strict risk-minimization framework using the **Minimum Detection Cost Function (minDCF)**. Instead of assessing unweighted accuracy, minDCF incorporates real-world security costs ($C_{FN}$ and $C_{FP}$) and the prior probability of encountering an authentic user ($P_{true}$):
+
+$$DCF = C_{FN} \times P_{FN} \times P_{true} + C_{FP} \times P_{FP} \times (1 - P_{true})$$
+
+The custom implementation sweeps all possible operational thresholds across the sorted validation LLR spectrum to find the absolute minimum cost, which is then normalized against a dummy (no-information) classifier:
+
+$$\text{minDCF}_{normalized} = \frac{\min_{\tau} \text{DCF}(\tau)}{\min(C_{FN} P_{true}, C_{FP} (1 - P_{true}))}$$
+
+* $\min_{\tau} \text{DCF}(\tau)$: The **best (lowest) cost achieved by the model**. The code sweeps all possible thresholds ($\tau$) across the LLR scores to find where the model makes the fewest and least dangerous mistakes.
+
+* $\min(C_{FN} P_{true}, C_{FP} (1 - P_{true}))$: **It represents the cost of making the safest "blind" decision**. The system automatically picks whichever option causes the least damage:
+  * *Reject All*: We risk only annoying real users (costs $C_{FN} \times P_{true}$).
+  * *Accept All*: We risk letting all attackers in (costs $C_{FP} \times (1 - P_{true})$).

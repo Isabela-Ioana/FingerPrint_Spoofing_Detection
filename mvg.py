@@ -45,7 +45,12 @@ class MultivariateGaussianClassifier:
             log_posterior_c = self._logpdf_mvg(X, self.means[c], self.covariances[c]) + np.log(self.prioris[c])
             posteriors.append(log_posterior_c)
             
+        posteriors_matrix = np.vstack(posteriors)
+
         # Choosing the class that maximizes the a posteriori probability
-        idx_max = np.argmax(np.vstack(posteriors), axis=0)
-        return self.classes[idx_max]
+        idx_max = np.argmax(posteriors_matrix, axis=0)
+
+        llr_scores = posteriors_matrix[1] - posteriors_matrix[0]
+
+        return self.classes[idx_max], llr_scores
     
